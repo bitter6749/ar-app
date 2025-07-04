@@ -1,0 +1,369 @@
+<!doctype html>
+<html>
+    <head>
+        <script src="https://aframe.io/releases/1.6.0/aframe.min.js"></script>
+        <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
+        <script src="https://raw.githack.com/donmccurdy/aframe-extras/master/dist/aframe-extras.loaders.min.js"></script>
+        <script src="https://raw.githack.com/AR-js-org/studio-backend/master/src/modules/marker/tools/gesture-detector.js"></script>
+        <script src="https://raw.githack.com/AR-js-org/studio-backend/master/src/modules/marker/tools/gesture-handler.js"></script>
+        <style>
+            #captureButton {
+                position: fixed;
+                bottom: 20px;
+                right: 20px;
+                z-index: 999;
+                padding: 15px 25px;
+                background: #007bff;
+                color: white;
+                border: none;
+                border-radius: 5px;
+                font-size: 16px;
+                cursor: pointer;
+                box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+            }
+            #captureButton:hover {
+                background: #0056b3;
+            }
+            #captureButton:active {
+                transform: scale(0.95);
+            }
+            #downloadLink {
+                position: fixed;
+                bottom: 80px;
+                right: 20px;
+                z-index: 999;
+                padding: 10px 20px;
+                background: #28a745;
+                color: white;
+                text-decoration: none;
+                border-radius: 5px;
+                display: none;
+            }
+            #debugInfo {
+                position: fixed;
+                top: 80px;
+                right: 20px;
+                z-index: 999;
+                padding: 10px;
+                background: rgba(0,0,0,0.8);
+                color: white;
+                border-radius: 5px;
+                font-size: 12px;
+                max-width: 300px;
+                display: none;
+            }
+            #debugButton {
+                position: fixed;
+                bottom: 140px;
+                right: 20px;
+                z-index: 999;
+                padding: 10px 15px;
+                background: #6c757d;
+                color: white;
+                border: none;
+                border-radius: 5px;
+                font-size: 14px;
+                cursor: pointer;
+            }
+        </style>
+    </head>
+
+    <body style="margin: 0; overflow: hidden;">
+        <div id="status">カスタムARマーカーをカメラに向けてください</div>
+        <div id="debugInfo"></div>
+        <button id="captureButton">スクリーンショット撮影</button>
+        <button id="debugButton">デバッグ情報</button>
+        <a id="downloadLink" download="ar-screenshot.png">画像をダウンロード</a>
+
+        <a-scene
+            vr-mode-ui="enabled: false;"
+            loading-screen="enabled: false;"
+            renderer="logarithmicDepthBuffer: true; preserveDrawingBuffer: true; antialias: true;"
+            arjs="trackingMethod: best; sourceType: webcam; debugUIEnabled: false;"
+            id="scene"
+            embedded
+            gesture-detector
+            screenshot
+        >
+            <a-assets>
+                <a-asset-item
+                    id="animated-asset"
+                    src="assets/asset.glb"
+                ></a-asset-item>
+                
+                <a-asset-item
+                    id="cat-asset"
+                    src="assets/cat.glb"
+                ></a-asset-item>
+            </a-assets>
+
+            <a-marker
+                id="animated-marker"
+                type="pattern"
+                preset="custom"
+                url="assets/pattern.patt"
+                raycaster="objects: .clickable"
+                emitevents="true"
+                cursor="fuse: false; rayOrigin: mouse;"
+            >
+                <a-entity
+                    id="bowser-model"
+                    scale="0.2 0.2 0.2"
+                    rotation="-90 0 0"
+                    position="0 0 0"
+                    animation-mixer="loop: repeat"
+                    gltf-model="#animated-asset"
+                    class="clickable"
+                    gesture-handler
+                ></a-entity>
+                
+                <a-entity
+                    id="cat-model"
+                    scale="0.15 0.15 0.15"
+                    rotation="-90 0 0"
+                    position="0 0 -1"
+                    animation-mixer="loop: repeat"
+                    gltf-model="#cat-asset"
+                    class="clickable"
+                    gesture-handler
+                ></a-entity>
+            </a-marker>
+
+            <a-entity camera></a-entity>
+        </a-scene>
+
+        <script>
+            // スクリーンショット機能の実装
+            const captureButton = document.getElementById('captureButton');
+            const downloadLink = document.getElementById('downloadLink');
+            const debugButton = document.getElementById('debugButton');
+            const debugInfo = document.getElementById('debugInfo');
+            const scene = document.getElementById('scene');
+            const status = document.getElementById('status');
+
+            // デバッグ情報表示
+            debugButton.addEventListener('click', function() {
+                const canvas = scene.canvas;
+                const video = document.querySelector('video');
+                const marker = document.getElementById('animated-marker');
+                
+                let info = `
+                    <strong>デバッグ情報:</strong><br>
+                    Canvas存在: ${canvas ? 'あり' : 'なし'}<br>
+                    Canvas幅: ${canvas ? canvas.width : 'N/A'}<br>
+                    Canvas高さ: ${canvas ? canvas.height : 'N/A'}<br>
+                    Video存在: ${video ? 'あり' : 'なし'}<br>
+                    Video幅: ${video ? video.videoWidth : 'N/A'}<br>
+                    Video高さ: ${video ? video.videoHeight : 'N/A'}<br>
+                    レンダラー: ${scene.renderer ? 'あり' : 'なし'}<br>
+                    ARマーカー検出: ${marker.object3D.visible ? 'あり' : 'なし'}<br>
+                    preserveDrawingBuffer: ${scene.renderer ? scene.renderer.getContext().getContextAttributes().preserveDrawingBuffer : 'N/A'}<br>
+                    3Dモデル: ${document.getElementById('bowser-model').object3D.visible ? 'あり' : 'なし'}
+                `;
+                
+                debugInfo.innerHTML = info;
+                debugInfo.style.display = debugInfo.style.display === 'none' ? 'block' : 'none';
+            });
+
+            // マーカー検出状態の監視
+            const marker = document.getElementById('animated-marker');
+            marker.addEventListener('markerFound', function() {
+                status.textContent = 'ARマーカーが検出されました！';
+                status.style.background = 'rgba(40, 167, 69, 0.8)';
+            });
+
+            marker.addEventListener('markerLost', function() {
+                status.textContent = 'カスタムARマーカーをカメラに向けてください';
+                status.style.background = 'rgba(0, 0, 0, 0.7)';
+            });
+
+            // スクリーンショット撮影機能（3Dモデル対応版）
+            captureButton.addEventListener('click', function() {
+                captureScreenshot();
+            });
+
+            async function captureScreenshot() {
+                try {
+                    console.log('スクリーンショット開始');
+                    
+                    // Step 1: カメラ映像を取得
+                    const videoElement = document.querySelector('video');
+                    if (!videoElement || videoElement.videoWidth === 0) {
+                        throw new Error('カメラ映像が取得できません');
+                    }
+                    
+                    // Step 2: WebGLコンテキストから直接3Dシーンを取得
+                    const canvas = scene.canvas;
+                    if (!canvas) {
+                        throw new Error('A-Frameキャンバスが見つかりません');
+                    }
+                    
+                    // Step 3: 強制的にレンダリングを実行
+                    if (scene.renderer) {
+                        scene.renderer.render(scene.object3D, scene.camera);
+                    }
+                    
+                    // Step 4: 合成用のキャンバスを作成
+                    const compositeCanvas = document.createElement('canvas');
+                    compositeCanvas.width = videoElement.videoWidth;
+                    compositeCanvas.height = videoElement.videoHeight;
+                    const ctx = compositeCanvas.getContext('2d');
+                    
+                    // Step 5: カメラ映像を背景として描画
+                    ctx.drawImage(videoElement, 0, 0, compositeCanvas.width, compositeCanvas.height);
+                    
+                    // Step 6: WebGLコンテキストから直接ピクセルデータを読み取り
+                    const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+                    if (gl) {
+                        console.log('WebGLコンテキストから読み取り開始');
+                        
+                        // WebGLフレームバッファから直接読み取り
+                        const pixels = new Uint8Array(canvas.width * canvas.height * 4);
+                        gl.readPixels(0, 0, canvas.width, canvas.height, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+                        
+                        // ピクセルデータを一時キャンバスに描画
+                        const glCanvas = document.createElement('canvas');
+                        glCanvas.width = canvas.width;
+                        glCanvas.height = canvas.height;
+                        const glCtx = glCanvas.getContext('2d');
+                        
+                        const imageData = glCtx.createImageData(canvas.width, canvas.height);
+                        
+                        // Y軸を反転（WebGLは下から上へ、Canvas2Dは上から下へ）
+                        for (let y = 0; y < canvas.height; y++) {
+                            for (let x = 0; x < canvas.width; x++) {
+                                const srcIndex = ((canvas.height - 1 - y) * canvas.width + x) * 4;
+                                const dstIndex = (y * canvas.width + x) * 4;
+                                
+                                imageData.data[dstIndex] = pixels[srcIndex];
+                                imageData.data[dstIndex + 1] = pixels[srcIndex + 1];
+                                imageData.data[dstIndex + 2] = pixels[srcIndex + 2];
+                                imageData.data[dstIndex + 3] = pixels[srcIndex + 3];
+                            }
+                        }
+                        
+                        glCtx.putImageData(imageData, 0, 0);
+                        
+                        // 3Dシーンを合成（透明度を考慮）
+                        ctx.globalCompositeOperation = 'source-over';
+                        ctx.drawImage(glCanvas, 0, 0, compositeCanvas.width, compositeCanvas.height);
+                        
+                        console.log('WebGLからの読み取り完了');
+                    } else {
+                        console.log('WebGLコンテキストが取得できません、代替手段を使用');
+                        
+                        // 代替手段：通常のtoDataURL
+                        try {
+                            const tempCanvas = document.createElement('canvas');
+                            tempCanvas.width = canvas.width;
+                            tempCanvas.height = canvas.height;
+                            const tempCtx = tempCanvas.getContext('2d');
+                            tempCtx.drawImage(canvas, 0, 0);
+                            
+                            ctx.globalCompositeOperation = 'source-over';
+                            ctx.drawImage(tempCanvas, 0, 0, compositeCanvas.width, compositeCanvas.height);
+                        } catch (error) {
+                            console.error('代替手段も失敗:', error);
+                        }
+                    }
+                    
+                    // Step 7: 画像として出力
+                    const dataURL = compositeCanvas.toDataURL('image/png');
+                    
+                    if (dataURL && dataURL !== 'data:,' && dataURL.length > 1000) {
+                        downloadImage(dataURL);
+                        console.log('スクリーンショット成功');
+                    } else {
+                        throw new Error('画像データが正しく生成されませんでした');
+                    }
+                    
+                } catch (error) {
+                    console.error('スクリーンショットエラー:', error);
+                    
+                    // フォールバック：画面全体をキャプチャ
+                    if (navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) {
+                        try {
+                            const stream = await navigator.mediaDevices.getDisplayMedia({
+                                video: {
+                                    mediaSource: 'screen',
+                                    width: { ideal: 1920 },
+                                    height: { ideal: 1080 }
+                                }
+                            });
+                            
+                            const video = document.createElement('video');
+                            video.srcObject = stream;
+                            video.play();
+                            
+                            video.addEventListener('loadedmetadata', () => {
+                                const canvas = document.createElement('canvas');
+                                canvas.width = video.videoWidth;
+                                canvas.height = video.videoHeight;
+                                
+                                const ctx = canvas.getContext('2d');
+                                ctx.drawImage(video, 0, 0);
+                                
+                                stream.getTracks().forEach(track => track.stop());
+                                
+                                const dataURL = canvas.toDataURL('image/png');
+                                downloadImage(dataURL);
+                            });
+                        } catch (displayError) {
+                            alert('すべてのキャプチャ方法が失敗しました。マーカーが検出されていることを確認してください。');
+                        }
+                    } else {
+                        alert('スクリーンショットの撮影に失敗しました: ' + error.message);
+                    }
+                }
+            }
+
+            function downloadImage(dataURL) {
+                if (!dataURL || dataURL === 'data:,') {
+                    alert('画像データが空です');
+                    return;
+                }
+                
+                const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+                downloadLink.href = dataURL;
+                downloadLink.download = `ar-screenshot-${timestamp}.png`;
+                downloadLink.style.display = 'block';
+                
+                // 一時的にボタンテキストを変更
+                const originalText = captureButton.textContent;
+                captureButton.textContent = '撮影完了！';
+                captureButton.style.background = '#28a745';
+                
+                setTimeout(() => {
+                    captureButton.textContent = originalText;
+                    captureButton.style.background = '#007bff';
+                }, 2000);
+                
+                // 自動的にダウンロードを開始
+                downloadLink.click();
+                
+                console.log('スクリーンショット成功 - データURL長:', dataURL.length);
+            }
+
+            // A-Frameの初期化完了を待つ
+            scene.addEventListener('loaded', function() {
+                console.log('A-Frameシーンの初期化完了');
+            });
+
+            // デバッグ用：キーボードショートカット（Spaceキー）でもスクリーンショット
+            document.addEventListener('keydown', function(event) {
+                if (event.code === 'Space') {
+                    event.preventDefault();
+                    captureButton.click();
+                }
+            });
+
+            // 定期的にデバッグ情報を更新
+            setInterval(function() {
+                if (debugInfo.style.display === 'block') {
+                    debugButton.click();
+                    debugButton.click(); // 2回クリックで情報更新
+                }
+            }, 5000);
+        </script>
+    </body>
+</html>
