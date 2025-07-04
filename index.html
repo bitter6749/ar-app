@@ -1,79 +1,246 @@
 <!doctype html>
 <html>
     <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+        <title>AR Camera</title>
         <script src="https://aframe.io/releases/1.6.0/aframe.min.js"></script>
         <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
         <script src="https://raw.githack.com/donmccurdy/aframe-extras/master/dist/aframe-extras.loaders.min.js"></script>
         <script src="https://raw.githack.com/AR-js-org/studio-backend/master/src/modules/marker/tools/gesture-detector.js"></script>
         <script src="https://raw.githack.com/AR-js-org/studio-backend/master/src/modules/marker/tools/gesture-handler.js"></script>
         <style>
-            #captureButton {
+            body {
+                margin: 0;
+                overflow: hidden;
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                background: #000;
+                touch-action: manipulation;
+            }
+
+            /* ステータス表示 */
+            #status {
                 position: fixed;
-                bottom: 20px;
-                right: 20px;
-                z-index: 999;
-                padding: 15px 25px;
-                background: #007bff;
+                top: 20px;
+                left: 50%;
+                transform: translateX(-50%);
+                z-index: 1000;
+                padding: 12px 20px;
+                background: rgba(0, 0, 0, 0.8);
                 color: white;
-                border: none;
-                border-radius: 5px;
-                font-size: 16px;
+                border-radius: 20px;
+                font-size: 14px;
+                text-align: center;
+                backdrop-filter: blur(10px);
+                border: 1px solid rgba(255, 255, 255, 0.1);
+                transition: all 0.3s ease;
+            }
+
+            #status.detected {
+                background: rgba(40, 167, 69, 0.9);
+                border-color: rgba(40, 167, 69, 0.3);
+            }
+
+            /* カメラコントロール */
+            #cameraControls {
+                position: fixed;
+                bottom: 0;
+                left: 0;
+                right: 0;
+                height: 120px;
+                background: linear-gradient(to top, rgba(0, 0, 0, 0.8), transparent);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                z-index: 1000;
+                padding: 20px;
+                box-sizing: border-box;
+            }
+
+            /* シャッターボタン */
+            #captureButton {
+                width: 70px;
+                height: 70px;
+                border-radius: 50%;
+                background: linear-gradient(135deg, #ffffff, #f0f0f0);
+                border: 4px solid rgba(255, 255, 255, 0.8);
+                box-shadow: 
+                    0 0 0 2px rgba(0, 0, 0, 0.3),
+                    0 8px 20px rgba(0, 0, 0, 0.4),
+                    inset 0 2px 4px rgba(255, 255, 255, 0.3);
                 cursor: pointer;
-                box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+                position: relative;
+                transition: all 0.2s ease;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                outline: none;
+                -webkit-tap-highlight-color: transparent;
             }
-            #captureButton:hover {
-                background: #0056b3;
+
+            #captureButton::before {
+                content: '';
+                width: 45px;
+                height: 45px;
+                border-radius: 50%;
+                background: linear-gradient(135deg, #ff6b6b, #ff5252);
+                box-shadow: 
+                    0 2px 8px rgba(255, 82, 82, 0.4),
+                    inset 0 1px 2px rgba(255, 255, 255, 0.2);
+                transition: all 0.2s ease;
             }
+
             #captureButton:active {
                 transform: scale(0.95);
+                box-shadow: 
+                    0 0 0 2px rgba(0, 0, 0, 0.3),
+                    0 4px 12px rgba(0, 0, 0, 0.3),
+                    inset 0 2px 4px rgba(255, 255, 255, 0.3);
             }
+
+            #captureButton:active::before {
+                transform: scale(0.9);
+                background: linear-gradient(135deg, #ff5252, #f44336);
+            }
+
+            #captureButton.capturing {
+                animation: captureAnimation 0.3s ease;
+            }
+
+            #captureButton.capturing::before {
+                background: linear-gradient(135deg, #4caf50, #2e7d32);
+            }
+
+            @keyframes captureAnimation {
+                0% { transform: scale(1); }
+                50% { transform: scale(1.1); }
+                100% { transform: scale(1); }
+            }
+
+            /* 成功メッセージ */
+            #successMessage {
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                z-index: 1001;
+                padding: 20px 30px;
+                background: rgba(76, 175, 80, 0.95);
+                color: white;
+                border-radius: 25px;
+                font-size: 16px;
+                font-weight: 500;
+                text-align: center;
+                backdrop-filter: blur(10px);
+                box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+                opacity: 0;
+                pointer-events: none;
+                transition: all 0.3s ease;
+            }
+
+            #successMessage.show {
+                opacity: 1;
+                animation: successPulse 0.5s ease;
+            }
+
+            @keyframes successPulse {
+                0% { transform: translate(-50%, -50%) scale(0.8); }
+                50% { transform: translate(-50%, -50%) scale(1.1); }
+                100% { transform: translate(-50%, -50%) scale(1); }
+            }
+
+            /* 隠しダウンロードリンク */
             #downloadLink {
-                position: fixed;
-                bottom: 80px;
-                right: 20px;
-                z-index: 999;
-                padding: 10px 20px;
-                background: #28a745;
-                color: white;
-                text-decoration: none;
-                border-radius: 5px;
                 display: none;
             }
-            #debugInfo {
-                position: fixed;
-                top: 80px;
-                right: 20px;
-                z-index: 999;
-                padding: 10px;
-                background: rgba(0,0,0,0.8);
-                color: white;
-                border-radius: 5px;
-                font-size: 12px;
-                max-width: 300px;
-                display: none;
+
+            /* カメラアイコン */
+            .camera-icon {
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                width: 20px;
+                height: 20px;
+                opacity: 0.7;
+                pointer-events: none;
             }
-            #debugButton {
-                position: fixed;
-                bottom: 140px;
-                right: 20px;
-                z-index: 999;
-                padding: 10px 15px;
-                background: #6c757d;
-                color: white;
-                border: none;
-                border-radius: 5px;
-                font-size: 14px;
-                cursor: pointer;
+
+            .camera-icon::before {
+                content: '';
+                position: absolute;
+                top: 4px;
+                left: 2px;
+                width: 16px;
+                height: 12px;
+                border: 2px solid white;
+                border-radius: 3px;
+                background: transparent;
+            }
+
+            .camera-icon::after {
+                content: '';
+                position: absolute;
+                top: 7px;
+                left: 6px;
+                width: 8px;
+                height: 6px;
+                border: 2px solid white;
+                border-radius: 50%;
+                background: transparent;
+            }
+
+            /* レスポンシブ対応 */
+            @media (max-width: 480px) {
+                #status {
+                    font-size: 12px;
+                    padding: 10px 16px;
+                    top: 15px;
+                }
+                
+                #captureButton {
+                    width: 65px;
+                    height: 65px;
+                }
+                
+                #captureButton::before {
+                    width: 40px;
+                    height: 40px;
+                }
+                
+                #cameraControls {
+                    height: 100px;
+                    padding: 15px;
+                }
+            }
+
+            /* 横向き対応 */
+            @media (orientation: landscape) {
+                #cameraControls {
+                    right: 20px;
+                    bottom: 50%;
+                    transform: translateY(50%);
+                    left: auto;
+                    width: 120px;
+                    height: auto;
+                    background: linear-gradient(to left, rgba(0, 0, 0, 0.8), transparent);
+                    flex-direction: column;
+                }
             }
         </style>
     </head>
 
-    <body style="margin: 0; overflow: hidden;">
-        <div id="status">カスタムARマーカーをカメラに向けてください</div>
-        <div id="debugInfo"></div>
-        <button id="captureButton">スクリーンショット撮影</button>
-        <button id="debugButton">デバッグ情報</button>
-        <a id="downloadLink" download="ar-screenshot.png">画像をダウンロード</a>
+    <body>
+        <div id="status">ARマーカーをカメラに向けてください</div>
+        <div id="successMessage">写真を保存しました！</div>
+        
+        <div id="cameraControls">
+            <button id="captureButton" aria-label="写真を撮影">
+                <div class="camera-icon"></div>
+            </button>
+        </div>
+        
+        <a id="downloadLink" download="ar-photo.png"></a>
 
         <a-scene
             vr-mode-ui="enabled: false;"
@@ -133,86 +300,81 @@
         </a-scene>
 
         <script>
-            // スクリーンショット機能の実装
+            // 要素の取得
             const captureButton = document.getElementById('captureButton');
             const downloadLink = document.getElementById('downloadLink');
-            const debugButton = document.getElementById('debugButton');
-            const debugInfo = document.getElementById('debugInfo');
             const scene = document.getElementById('scene');
             const status = document.getElementById('status');
-
-            // デバッグ情報表示
-            debugButton.addEventListener('click', function() {
-                const canvas = scene.canvas;
-                const video = document.querySelector('video');
-                const marker = document.getElementById('animated-marker');
-                
-                let info = `
-                    <strong>デバッグ情報:</strong><br>
-                    Canvas存在: ${canvas ? 'あり' : 'なし'}<br>
-                    Canvas幅: ${canvas ? canvas.width : 'N/A'}<br>
-                    Canvas高さ: ${canvas ? canvas.height : 'N/A'}<br>
-                    Video存在: ${video ? 'あり' : 'なし'}<br>
-                    Video幅: ${video ? video.videoWidth : 'N/A'}<br>
-                    Video高さ: ${video ? video.videoHeight : 'N/A'}<br>
-                    レンダラー: ${scene.renderer ? 'あり' : 'なし'}<br>
-                    ARマーカー検出: ${marker.object3D.visible ? 'あり' : 'なし'}<br>
-                    preserveDrawingBuffer: ${scene.renderer ? scene.renderer.getContext().getContextAttributes().preserveDrawingBuffer : 'N/A'}<br>
-                    3Dモデル: ${document.getElementById('bowser-model').object3D.visible ? 'あり' : 'なし'}
-                `;
-                
-                debugInfo.innerHTML = info;
-                debugInfo.style.display = debugInfo.style.display === 'none' ? 'block' : 'none';
-            });
+            const successMessage = document.getElementById('successMessage');
 
             // マーカー検出状態の監視
             const marker = document.getElementById('animated-marker');
+            
             marker.addEventListener('markerFound', function() {
-                status.textContent = 'ARマーカーが検出されました！';
-                status.style.background = 'rgba(40, 167, 69, 0.8)';
+                status.textContent = 'ARオブジェクトが表示されています';
+                status.classList.add('detected');
             });
 
             marker.addEventListener('markerLost', function() {
-                status.textContent = 'カスタムARマーカーをカメラに向けてください';
-                status.style.background = 'rgba(0, 0, 0, 0.7)';
+                status.textContent = 'ARマーカーをカメラに向けてください';
+                status.classList.remove('detected');
             });
 
-            // スクリーンショット撮影機能（3Dモデル対応版）
+            // スクリーンショット撮影
             captureButton.addEventListener('click', function() {
+                // ボタンアニメーション
+                captureButton.classList.add('capturing');
+                setTimeout(() => {
+                    captureButton.classList.remove('capturing');
+                }, 300);
+                
+                // バイブレーション（対応デバイスのみ）
+                if ('vibrate' in navigator) {
+                    navigator.vibrate(50);
+                }
+                
                 captureScreenshot();
+            });
+
+            // 音量ボタンでの撮影（Android）
+            document.addEventListener('keydown', function(event) {
+                if (event.code === 'VolumeUp' || event.code === 'VolumeDown') {
+                    event.preventDefault();
+                    captureButton.click();
+                }
             });
 
             async function captureScreenshot() {
                 try {
                     console.log('スクリーンショット開始');
                     
-                    // Step 1: カメラ映像を取得
+                    // カメラ映像を取得
                     const videoElement = document.querySelector('video');
                     if (!videoElement || videoElement.videoWidth === 0) {
                         throw new Error('カメラ映像が取得できません');
                     }
                     
-                    // Step 2: WebGLコンテキストから直接3Dシーンを取得
+                    // A-FrameキャンバスからWebGLコンテキストを取得
                     const canvas = scene.canvas;
                     if (!canvas) {
                         throw new Error('A-Frameキャンバスが見つかりません');
                     }
                     
-                    // Step 3: 強制的にレンダリングを実行
+                    // 強制的にレンダリングを実行
                     if (scene.renderer) {
                         scene.renderer.render(scene.object3D, scene.camera);
                     }
                     
-                    // Step 4: 合成用のキャンバスを作成
+                    // 合成用のキャンバスを作成
                     const compositeCanvas = document.createElement('canvas');
                     compositeCanvas.width = videoElement.videoWidth;
                     compositeCanvas.height = videoElement.videoHeight;
                     const ctx = compositeCanvas.getContext('2d');
                     
-                    // Step 5: カメラ映像を背景として描画
+                    // カメラ映像を背景として描画
                     ctx.drawImage(videoElement, 0, 0, compositeCanvas.width, compositeCanvas.height);
                     
-                    // Step 6: WebGLコンテキストから直接ピクセルデータを読み取り
+                    // WebGLコンテキストから直接ピクセルデータを読み取り
                     const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
                     if (gl) {
                         console.log('WebGLコンテキストから読み取り開始');
@@ -267,11 +429,12 @@
                         }
                     }
                     
-                    // Step 7: 画像として出力
+                    // 画像として出力
                     const dataURL = compositeCanvas.toDataURL('image/png');
                     
                     if (dataURL && dataURL !== 'data:,' && dataURL.length > 1000) {
                         downloadImage(dataURL);
+                        showSuccessMessage();
                         console.log('スクリーンショット成功');
                     } else {
                         throw new Error('画像データが正しく生成されませんでした');
@@ -279,64 +442,19 @@
                     
                 } catch (error) {
                     console.error('スクリーンショットエラー:', error);
-                    
-                    // フォールバック：画面全体をキャプチャ
-                    if (navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) {
-                        try {
-                            const stream = await navigator.mediaDevices.getDisplayMedia({
-                                video: {
-                                    mediaSource: 'screen',
-                                    width: { ideal: 1920 },
-                                    height: { ideal: 1080 }
-                                }
-                            });
-                            
-                            const video = document.createElement('video');
-                            video.srcObject = stream;
-                            video.play();
-                            
-                            video.addEventListener('loadedmetadata', () => {
-                                const canvas = document.createElement('canvas');
-                                canvas.width = video.videoWidth;
-                                canvas.height = video.videoHeight;
-                                
-                                const ctx = canvas.getContext('2d');
-                                ctx.drawImage(video, 0, 0);
-                                
-                                stream.getTracks().forEach(track => track.stop());
-                                
-                                const dataURL = canvas.toDataURL('image/png');
-                                downloadImage(dataURL);
-                            });
-                        } catch (displayError) {
-                            alert('すべてのキャプチャ方法が失敗しました。マーカーが検出されていることを確認してください。');
-                        }
-                    } else {
-                        alert('スクリーンショットの撮影に失敗しました: ' + error.message);
-                    }
+                    showErrorMessage('撮影に失敗しました。マーカーが検出されていることを確認してください。');
                 }
             }
 
             function downloadImage(dataURL) {
                 if (!dataURL || dataURL === 'data:,') {
-                    alert('画像データが空です');
+                    showErrorMessage('画像データが空です');
                     return;
                 }
                 
                 const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
                 downloadLink.href = dataURL;
-                downloadLink.download = `ar-screenshot-${timestamp}.png`;
-                downloadLink.style.display = 'block';
-                
-                // 一時的にボタンテキストを変更
-                const originalText = captureButton.textContent;
-                captureButton.textContent = '撮影完了！';
-                captureButton.style.background = '#28a745';
-                
-                setTimeout(() => {
-                    captureButton.textContent = originalText;
-                    captureButton.style.background = '#007bff';
-                }, 2000);
+                downloadLink.download = `ar-photo-${timestamp}.png`;
                 
                 // 自動的にダウンロードを開始
                 downloadLink.click();
@@ -344,26 +462,38 @@
                 console.log('スクリーンショット成功 - データURL長:', dataURL.length);
             }
 
+            function showSuccessMessage() {
+                successMessage.textContent = '写真を保存しました！';
+                successMessage.classList.add('show');
+                setTimeout(() => {
+                    successMessage.classList.remove('show');
+                }, 2000);
+            }
+
+            function showErrorMessage(message) {
+                successMessage.textContent = message;
+                successMessage.style.background = 'rgba(244, 67, 54, 0.95)';
+                successMessage.classList.add('show');
+                setTimeout(() => {
+                    successMessage.classList.remove('show');
+                    successMessage.style.background = 'rgba(76, 175, 80, 0.95)';
+                }, 3000);
+            }
+
             // A-Frameの初期化完了を待つ
             scene.addEventListener('loaded', function() {
                 console.log('A-Frameシーンの初期化完了');
             });
 
-            // デバッグ用：キーボードショートカット（Spaceキー）でもスクリーンショット
-            document.addEventListener('keydown', function(event) {
-                if (event.code === 'Space') {
-                    event.preventDefault();
-                    captureButton.click();
-                }
+            // タッチイベントの最適化
+            captureButton.addEventListener('touchstart', function(e) {
+                e.preventDefault();
             });
 
-            // 定期的にデバッグ情報を更新
-            setInterval(function() {
-                if (debugInfo.style.display === 'block') {
-                    debugButton.click();
-                    debugButton.click(); // 2回クリックで情報更新
-                }
-            }, 5000);
+            captureButton.addEventListener('touchend', function(e) {
+                e.preventDefault();
+                this.click();
+            });
         </script>
     </body>
 </html>
